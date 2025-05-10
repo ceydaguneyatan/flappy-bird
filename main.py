@@ -1,3 +1,6 @@
+
+#doğru dosya mı kontrol edelim
+
 import pygame
 from sys import exit
 import random
@@ -189,6 +192,7 @@ def main():
 
         clock.tick(70)
         pygame.display.update()
+        
 
 
 # Menu
