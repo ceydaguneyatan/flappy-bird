@@ -1,9 +1,12 @@
-
-#doğru dosya mı kontrol edelim
+import cv2
+import mediapipe as mp
+import threading
 
 import pygame
 from sys import exit
 import random
+
+hand_position = "none"  # global değişken
 
 pygame.init()
 clock = pygame.time.Clock()
@@ -44,6 +47,7 @@ class Bird(pygame.sprite.Sprite):
         self.alive = True
 
     def update(self, user_input):
+        global hand_position
         # Animate Bird
         if self.alive:
             self.image_index += 1
@@ -65,6 +69,9 @@ class Bird(pygame.sprite.Sprite):
 
         # User Input
         if user_input[pygame.K_SPACE] and not self.flap and self.rect.y > 0 and self.alive:
+            self.flap = True
+            self.vel = -7
+        if (user_input[pygame.K_SPACE] or hand_position == "up") and not self.flap and self.rect.y > 0 and self.alive:   
             self.flap = True
             self.vel = -7
 
@@ -116,6 +123,35 @@ def quit_game():
         if event.type == pygame.QUIT:
             pygame.quit()
             exit()
+
+def detect_hand_position():
+    global hand_position
+    mp_hands = mp.solutions.hands
+    hands = mp_hands.Hands(max_num_hands=1)
+    cap = cv2.VideoCapture(0)
+    
+
+
+    while True:
+        success, image = cap.read()
+        if not success:
+            continue
+
+        image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+        result = hands.process(image)
+
+        if result.multi_hand_landmarks:
+            hand_landmarks = result.multi_hand_landmarks[0]
+            wrist_y = hand_landmarks.landmark[0].y  # bilek
+            tip_y = hand_landmarks.landmark[8].y    # işaret parmağı ucu
+
+            # El yukarıdaysa (uçma hareketi)
+            if tip_y < wrist_y - 0.1:
+                hand_position = "up"
+            else:
+                hand_position = "neutral"
+        else:
+            hand_position = "none"
 
 
 # Game Main Method
@@ -192,6 +228,8 @@ def main():
 
         clock.tick(70)
         pygame.display.update()
+threading.Thread(target=detect_hand_position, daemon=True).start()
+
         
 
 
