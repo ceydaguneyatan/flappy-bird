@@ -200,14 +200,18 @@ def main():
         # Collision Detection
         collision_pipes = pygame.sprite.spritecollide(bird.sprites()[0], pipes, False)
         collision_ground = pygame.sprite.spritecollide(bird.sprites()[0], ground, False)
+        
         if collision_pipes or collision_ground:
+
             bird.sprite.alive = False
-            if collision_ground:
-                window.blit(game_over_image, (win_width // 2 - game_over_image.get_width() // 2,
-                                              win_height // 2 - game_over_image.get_height() // 2))
-                if user_input[pygame.K_r]:
-                    score = 0
-                    break
+            # Game over ekranını göster
+            window.blit(game_over_image, (win_width // 2 - game_over_image.get_width() // 2,
+                                  win_height // 2 - game_over_image.get_height() // 2))
+
+            # R tuşuna basılırsa oyun yeniden başlar
+            if user_input[pygame.K_r]:
+                score = 0
+                return  # main() fonksiyonundan çıkar, tekrar başlar
 
         # Spawn Pipes
         if pipe_timer <= 0 and bird.sprite.alive:
