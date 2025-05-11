@@ -6,7 +6,8 @@ import pygame
 from sys import exit
 import random
 
-hand_position = "none"  # global değişken
+
+hand_position_y = None  # en başta global değişken
 
 pygame.init()
 clock = pygame.time.Clock()
@@ -37,43 +38,20 @@ game_stopped = True
 
 class Bird(pygame.sprite.Sprite):
     def __init__(self):
-        pygame.sprite.Sprite.__init__(self)
+        super().__init__()
         self.image = bird_images[0]
         self.rect = self.image.get_rect()
-        self.rect.center = bird_start_position
-        self.image_index = 0
-        self.vel = 0
-        self.flap = False
+        self.rect.x = bird_start_position[0]
+        self.rect.y = bird_start_position[1]
         self.alive = True
 
     def update(self, user_input):
-        global hand_position
-        # Animate Bird
-        if self.alive:
-            self.image_index += 1
-        if self.image_index >= 30:
-            self.image_index = 0
-        self.image = bird_images[self.image_index // 10]
+        global hand_position_y
 
-        # Gravity and Flap
-        self.vel += 0.5
-        if self.vel > 7:
-            self.vel = 7
-        if self.rect.y < 500:
-            self.rect.y += int(self.vel)
-        if self.vel == 0:
-            self.flap = False
-
-        # Rotate Bird
-        self.image = pygame.transform.rotate(self.image, self.vel * -7)
-
-        # User Input
-        if user_input[pygame.K_SPACE] and not self.flap and self.rect.y > 0 and self.alive:
-            self.flap = True
-            self.vel = -7
-        if (user_input[pygame.K_SPACE] or hand_position == "up") and not self.flap and self.rect.y > 0 and self.alive:   
-            self.flap = True
-            self.vel = -7
+        if self.alive and hand_position_y is not None:
+            # Elin Y konumuna göre kuşun yüksekliği ayarlanır
+            screen_y = int(hand_position_y * win_height)
+            self.rect.y = screen_y
 
 
 class Pipe(pygame.sprite.Sprite):
@@ -125,11 +103,26 @@ def quit_game():
             exit()
 
 def detect_hand_position():
-    global hand_position
+    global hand_position_y
     mp_hands = mp.solutions.hands
     hands = mp_hands.Hands(max_num_hands=1)
     cap = cv2.VideoCapture(0)
-    
+
+    while True:
+        success, image = cap.read()
+        if not success:
+            continue
+
+        image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+        result = hands.process(image)
+
+        if result.multi_hand_landmarks:
+            hand_landmarks = result.multi_hand_landmarks[0]
+            tip_y = hand_landmarks.landmark[8].y  # işaret parmağı ucu
+            hand_position_y = tip_y
+        else:
+            hand_position_y = None
+
 
 
     while True:
