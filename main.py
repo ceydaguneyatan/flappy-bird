@@ -8,6 +8,8 @@ import random
 
 
 hand_position_y = None  # en başta global değişken
+lives = 3
+heart_image = pygame.image.load("assets/heart.png")
 
 pygame.init()
 clock = pygame.time.Clock()
@@ -150,6 +152,10 @@ def detect_hand_position():
 # Game Main Method
 def main():
     global score
+    global lives
+    score = 0
+    lives = 3
+
 
     # Instantiate Bird
     bird = pygame.sprite.GroupSingle()
@@ -190,6 +196,8 @@ def main():
         # Show Score
         score_text = font.render('Score: ' + str(score), True, pygame.Color(255, 255, 255))
         window.blit(score_text, (20, 20))
+        for i in range(lives):
+            window.blit(heart_image, (win_width - (i + 1) * (heart_image.get_width() + 10) - 10, 10))
 
         # Update - Pipes, Ground and Bird
         if bird.sprite.alive:
@@ -200,18 +208,24 @@ def main():
         # Collision Detection
         collision_pipes = pygame.sprite.spritecollide(bird.sprites()[0], pipes, False)
         collision_ground = pygame.sprite.spritecollide(bird.sprites()[0], ground, False)
-        
-        if collision_pipes or collision_ground:
 
-            bird.sprite.alive = False
-            # Game over ekranını göster
-            window.blit(game_over_image, (win_width // 2 - game_over_image.get_width() // 2,
-                                  win_height // 2 - game_over_image.get_height() // 2))
-
-            # R tuşuna basılırsa oyun yeniden başlar
-            if user_input[pygame.K_r]:
-                score = 0
-                return  # main() fonksiyonundan çıkar, tekrar başlar
+        # Only lose life if bird is alive and collided
+        if bird.sprite.alive and (collision_pipes or collision_ground):
+            lives -= 1
+            if lives <= 0:
+                bird.sprite.alive = False
+                window.blit(game_over_image, (win_width // 2 - game_over_image.get_width() // 2,
+                                              win_height // 2 - game_over_image.get_height() // 2))
+                pygame.display.update()
+                #pygame.time.delay(1500)
+                return  # oyun baştan başlasın
+            else:
+                bird.empty()
+                bird.add(Bird())
+                pipes.empty()
+                ground.empty()
+                ground.add(Ground(0, 520))
+                pipe_timer = 0
 
         # Spawn Pipes
         if pipe_timer <= 0 and bird.sprite.alive:
@@ -248,7 +262,10 @@ def menu():
         # User Input
         user_input = pygame.key.get_pressed()
         if user_input[pygame.K_SPACE]:
+            game_stopped = False
             main()
+            game_stopped = True  # tekrar menüye dön
+
 
         pygame.display.update()
 
