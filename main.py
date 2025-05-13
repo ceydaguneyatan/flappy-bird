@@ -7,11 +7,13 @@ from sys import exit
 import random
 
 
+pygame.init()
 hand_position_y = None  # en başta global değişken
 lives = 3
-heart_image = pygame.image.load("assets/heart.png")
+heart_image = pygame.image.load("assets/redHeart.png")
+do_not_collide_timer = 0 #“Kuş şu anda çarpışmaya açık mı, değil mi?”
+input_lock_timer = 0
 
-pygame.init()
 clock = pygame.time.Clock()
 
 # Window
@@ -39,7 +41,7 @@ game_stopped = True
 
 
 class Bird(pygame.sprite.Sprite):
-    def __init__(self):
+    def __init__(self, pos=None):
         super().__init__()
         self.image = bird_images[0]
         self.rect = self.image.get_rect()
@@ -50,10 +52,23 @@ class Bird(pygame.sprite.Sprite):
     def update(self, user_input):
         global hand_position_y
 
-        if self.alive and hand_position_y is not None:
+        if not self.alive:
+            return  # Ölü kuş hareket etmez
+
+        if input_lock_timer > 0:
+            # El kontrolü kilitliyken kuşu ortalama bir pozisyonda sabitle
+            self.rect.y = 250
+            return
+
+        if hand_position_y is not None:
             # Elin Y konumuna göre kuşun yüksekliği ayarlanır
             screen_y = int(hand_position_y * win_height)
             self.rect.y = screen_y
+
+        # Kuş zeminin altına düşmesin
+        if self.rect.bottom > 520:
+            self.rect.bottom = 520
+
 
 
 class Pipe(pygame.sprite.Sprite):
@@ -106,60 +121,84 @@ def quit_game():
 
 def detect_hand_position():
     global hand_position_y
+
     mp_hands = mp.solutions.hands
     hands = mp_hands.Hands(max_num_hands=1)
     cap = cv2.VideoCapture(0)
 
-    while True:
-        success, image = cap.read()
-        if not success:
-            continue
+    try:
+        while True:
+            success, image = cap.read()
+            if not success:
+                continue
 
-        image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
-        result = hands.process(image)
+            # Görüntüyü RGB'ye çevir
+            image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+            result = hands.process(image)
 
-        if result.multi_hand_landmarks:
-            hand_landmarks = result.multi_hand_landmarks[0]
-            tip_y = hand_landmarks.landmark[8].y  # işaret parmağı ucu
-            hand_position_y = tip_y
-        else:
-            hand_position_y = None
-
-
-
-    while True:
-        success, image = cap.read()
-        if not success:
-            continue
-
-        image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
-        result = hands.process(image)
-
-        if result.multi_hand_landmarks:
-            hand_landmarks = result.multi_hand_landmarks[0]
-            wrist_y = hand_landmarks.landmark[0].y  # bilek
-            tip_y = hand_landmarks.landmark[8].y    # işaret parmağı ucu
-
-            # El yukarıdaysa (uçma hareketi)
-            if tip_y < wrist_y - 0.1:
-                hand_position = "up"
+            if result.multi_hand_landmarks:
+                hand_landmarks = result.multi_hand_landmarks[0]
+                tip_y = hand_landmarks.landmark[8].y  # İşaret parmağı ucu (tip_y 0-1 arası bir oran)
+                hand_position_y = tip_y
             else:
-                hand_position = "neutral"
-        else:
-            hand_position = "none"
+                hand_position_y = None
+
+    except Exception as e:
+        print(f"Hata oluştu: {e}")
+
+    finally:
+        cap.release()
+        cv2.destroyAllWindows()
+
+
+
+def game_over_screen():
+    global lives
+    global score
+    window.fill((0, 0, 0))  # Ekranı temizle
+    window.blit(game_over_image, (win_width // 2 - game_over_image.get_width() // 2,
+                                  win_height // 2 - game_over_image.get_height() // 2))  # Bitiş ekranını yerleştir
+
+    # Skoru göster
+    score_text = font.render(f'Your Score: {score}', True, pygame.Color(255, 255, 255))
+    window.blit(score_text, (win_width // 2 - score_text.get_width() // 2, win_height // 2 + 50))
+
+    # Yeniden başlatma için talimatlar
+    restart_text = font.render("Press SPACE to Restart", True, pygame.Color(255, 255, 255))
+    window.blit(restart_text, (win_width // 2 - restart_text.get_width() // 2, win_height // 2 + 100))
+
+    pygame.display.update()
+
+    # Kullanıcıdan giriş al
+    waiting_for_restart = True
+    while waiting_for_restart:
+        quit_game()
+        user_input = pygame.key.get_pressed()
+        if user_input[pygame.K_SPACE]:  # Yeniden başlatma tuşu
+            restart_game()  # Yeni bir oyun başlat
+            waiting_for_restart = False
+
+# Yeni bir oyun başlatmak için fonksiyon
+def restart_game():
+    global lives, score
+    lives = 3  # Canları sıfırla
+    score = 0  # Skoru sıfırla
+    # Oyun döngüsünü yeniden başlat
+    main()  # Ana oyun fonksiyonunu tekrar çağır
 
 
 # Game Main Method
 def main():
-    global score
-    global lives
+    global score, lives, do_not_collide_timer, input_lock_timer
     score = 0
     lives = 3
-
+    do_not_collide_timer = 0
+    input_lock_timer = 0
 
     # Instantiate Bird
     bird = pygame.sprite.GroupSingle()
     bird.add(Bird())
+
 
     # Setup Pipes
     pipe_timer = 0
@@ -208,24 +247,29 @@ def main():
         # Collision Detection
         collision_pipes = pygame.sprite.spritecollide(bird.sprites()[0], pipes, False)
         collision_ground = pygame.sprite.spritecollide(bird.sprites()[0], ground, False)
+        hit_ground_by_position = bird.sprite.rect.bottom >= 520  # zemine değmişse
 
         # Only lose life if bird is alive and collided
-        if bird.sprite.alive and (collision_pipes or collision_ground):
+        if bird.sprite.alive and do_not_collide_timer == 0 and (collision_pipes or hit_ground_by_position):
             lives -= 1
             if lives <= 0:
                 bird.sprite.alive = False
-                window.blit(game_over_image, (win_width // 2 - game_over_image.get_width() // 2,
-                                              win_height // 2 - game_over_image.get_height() // 2))
-                pygame.display.update()
-                #pygame.time.delay(1500)
+                game_over_screen()
                 return  # oyun baştan başlasın
             else:
                 bird.empty()
-                bird.add(Bird())
-                pipes.empty()
-                ground.empty()
-                ground.add(Ground(0, 520))
-                pipe_timer = 0
+                bird.add(Bird())  # Yeni bir kuş ekle
+                bird_start_position = (100, 250)
+                pipes.empty()  # Engelleri temizle
+                ground.empty()  # Zemini temizle
+                ground.add(Ground(0, 520))  # Yeniden zemin ekle
+                do_not_collide_timer = 30  # 30 frame boyunca çarpışma algılanmasın
+                input_lock_timer = 20  # 20 frame boyunca input yok sayılacak
+                pipe_timer = 0  # Yeni engellerin spawn olmasını engelle
+                # Eğer kuş zemine temas ettiyse, aşağı inmesini engelle
+                if collision_ground:
+                    bird.sprite.rect.bottom = 520  # Kuşun altını zeminin üstüne sabitle
+
 
         # Spawn Pipes
         if pipe_timer <= 0 and bird.sprite.alive:
@@ -239,9 +283,13 @@ def main():
 
         clock.tick(70)
         pygame.display.update()
-threading.Thread(target=detect_hand_position, daemon=True).start()
 
-        
+        if do_not_collide_timer > 0:
+            do_not_collide_timer -= 1
+        if input_lock_timer > 0:
+            input_lock_timer -= 1
+
+threading.Thread(target=detect_hand_position, daemon=True).start()
 
 
 # Menu
@@ -254,7 +302,8 @@ def menu():
         # Draw Menu
         window.fill((0, 0, 0))
         window.blit(skyline_image, (0, 0))
-        window.blit(ground_image, Ground(0, 520))
+        ground_temp = Ground(0, 520)
+        window.blit(ground_temp.image, ground_temp.rect)
         window.blit(bird_images[0], (100, 250))
         window.blit(start_image, (win_width // 2 - start_image.get_width() // 2,
                                   win_height // 2 - start_image.get_height() // 2))
