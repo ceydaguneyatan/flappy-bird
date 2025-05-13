@@ -55,10 +55,11 @@ class Bird(pygame.sprite.Sprite):
         if not self.alive:
             return  # Ölü kuş hareket etmez
 
-        if input_lock_timer > 0:
-            # El kontrolü kilitliyken kuşu ortalama bir pozisyonda sabitle
+        if input_lock_timer > 0 and lives < 3:
+         # El kontrolü kilitliyken kuşu ortalama bir pozisyonda sabitle
             self.rect.y = 250
             return
+
 
         if hand_position_y is not None:
             # Elin Y konumuna göre kuşun yüksekliği ayarlanır
@@ -286,7 +287,8 @@ def main():
 
         if do_not_collide_timer > 0:
             do_not_collide_timer -= 1
-        if input_lock_timer > 0:
+        
+        if input_lock_timer > 0 and lives < 3:
             input_lock_timer -= 1
 
 threading.Thread(target=detect_hand_position, daemon=True).start()
