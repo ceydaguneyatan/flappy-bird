@@ -260,14 +260,13 @@ def main():
             else:
                 bird.empty()
                 bird.add(Bird())  # Yeni bir kuş ekle
-                bird_start_position = (100, 250)
                 pipes.empty()  # Engelleri temizle
                 ground.empty()  # Zemini temizle
                 ground.add(Ground(0, 520))  # Yeniden zemin ekle
                 do_not_collide_timer = 30  # 30 frame boyunca çarpışma algılanmasın
                 input_lock_timer = 20  # 20 frame boyunca input yok sayılacak
-                pipe_timer = 0  # Yeni engellerin spawn olmasını engelle
-                # Eğer kuş zemine temas ettiyse, aşağı inmesini engelle
+                pipe_timer = 0   # Boruların hemen spawn olmasına izin ver
+                
                 if collision_ground:
                     bird.sprite.rect.bottom = 520  # Kuşun altını zeminin üstüne sabitle
 
